@@ -384,5 +384,3 @@ CREATE TABLE assets (
 - **Shadcn/UI** - Beautiful UI components
 
 ---
-
-Built with ❤️ for the Hackathon
