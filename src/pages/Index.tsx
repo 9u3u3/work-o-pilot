@@ -7,9 +7,13 @@ import {
   ChatMessages,
   ChatInput,
 } from "@/components/chat";
+import { AssetSidebar } from "@/components/assets/AssetSidebar";
+import { ExportDialog } from "@/components/chat/ExportDialog";
 
 const Index = () => {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [assetSidebarOpen, setAssetSidebarOpen] = useState(false);
+  const [exportDialogOpen, setExportDialogOpen] = useState(false);
   const { theme, setTheme } = useTheme();
 
   const {
@@ -30,9 +34,15 @@ const Index = () => {
     }
   };
 
+  const hasMessages = (activeChat?.messages?.length ?? 0) > 0;
+
+  const handleFollowUpClick = (question: string) => {
+    sendMessage(question);
+  };
+
   return (
-    <div className="h-screen flex w-full bg-background">
-      {/* Sidebar */}
+    <div className="h-screen flex w-full bg-background overflow-hidden">
+      {/* Left Sidebar */}
       <ChatSidebar
         groupedChats={groupedChats}
         activeChatId={activeChatId}
@@ -45,21 +55,37 @@ const Index = () => {
       />
 
       {/* Main Chat Area */}
-      <div className="flex-1 flex flex-col min-w-0">
+      <div className="flex-1 flex flex-col min-w-0 relative">
         {/* Header */}
         <ChatHeader
           title={activeChat?.title || "New conversation"}
           theme={theme}
           onThemeChange={setTheme}
           onRename={handleRenameFromHeader}
+          onToggleAssets={() => setAssetSidebarOpen(!assetSidebarOpen)}
+          onExport={() => setExportDialogOpen(true)}
+          hasMessages={hasMessages}
         />
 
         {/* Messages */}
-        <ChatMessages chat={activeChat} />
+        <ChatMessages chat={activeChat} onFollowUpClick={handleFollowUpClick} />
 
         {/* Input */}
         <ChatInput onSend={sendMessage} isDisabled={isStreaming} />
       </div>
+
+      {/* Right Asset Sidebar */}
+      <AssetSidebar
+        isOpen={assetSidebarOpen}
+        onToggle={() => setAssetSidebarOpen(!assetSidebarOpen)}
+      />
+
+      {/* Export Dialog */}
+      <ExportDialog
+        open={exportDialogOpen}
+        onOpenChange={setExportDialogOpen}
+        messages={activeChat?.messages || []}
+      />
     </div>
   );
 };

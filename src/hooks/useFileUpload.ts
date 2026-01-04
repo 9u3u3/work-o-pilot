@@ -1,5 +1,6 @@
 import { useState, useRef, useCallback } from "react";
 import { FileAttachment } from "@/types/chat";
+import { generateUUID } from "@/lib/utils";
 
 const ALLOWED_TYPES = [
   "text/csv",
@@ -31,7 +32,7 @@ export function useFileUpload() {
       Array.from(files).forEach((file) => {
         if (isValidFile(file)) {
           newAttachments.push({
-            id: crypto.randomUUID(),
+            id: generateUUID(),
             name: file.name,
             type: file.type || getTypeFromExtension(file.name),
             size: file.size,

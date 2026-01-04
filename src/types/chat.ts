@@ -13,6 +13,20 @@ export interface Message {
   timestamp: Date;
   attachments?: FileAttachment[];
   isStreaming?: boolean;
+  visualization?: {
+    type: "pie_chart" | "line_chart" | "bar_chart" | "table" | "none";
+    chart_data?: {
+      type: string;
+      labels?: string[];
+      values?: number[];
+      datasets?: Array<{ label: string; data: Array<{ x: string; y: number }> }>;
+      data?: Record<string, unknown>[];
+    };
+    image_base64?: string;
+  };
+  sources?: Array<{ name: string; url?: string; type: string }>;
+  data?: Record<string, unknown>;
+  follow_up_question?: string;
 }
 
 export interface Chat {

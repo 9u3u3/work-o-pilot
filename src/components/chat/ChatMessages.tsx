@@ -5,6 +5,7 @@ import { BarChart3, Sparkles, FileSearch, TrendingUp } from "lucide-react";
 
 interface ChatMessagesProps {
   chat: Chat | null;
+  onFollowUpClick?: (question: string) => void;
 }
 
 const suggestions = [
@@ -30,7 +31,7 @@ const suggestions = [
   },
 ];
 
-export function ChatMessages({ chat }: ChatMessagesProps) {
+export function ChatMessages({ chat, onFollowUpClick }: ChatMessagesProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
@@ -44,7 +45,7 @@ export function ChatMessages({ chat }: ChatMessagesProps) {
       <div className="flex-1 flex flex-col items-center justify-center p-8">
         <div className="max-w-2xl w-full text-center">
           <h1 className="text-3xl font-semibold text-foreground mb-2">
-            Data Copilot
+            Work-o-pilot
           </h1>
           <p className="text-muted-foreground mb-8">
             Your AI assistant for data analysis and insights
@@ -82,7 +83,11 @@ export function ChatMessages({ chat }: ChatMessagesProps) {
     >
       <div className="max-w-3xl mx-auto py-6">
         {chat.messages.map((message) => (
-          <ChatMessage key={message.id} message={message} />
+          <ChatMessage
+            key={message.id}
+            message={message}
+            onFollowUpClick={onFollowUpClick}
+          />
         ))}
         <div ref={messagesEndRef} />
       </div>

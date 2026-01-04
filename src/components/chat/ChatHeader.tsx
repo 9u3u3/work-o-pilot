@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Settings, Moon, Sun, Monitor, Pencil, Check, X } from "lucide-react";
+import { Settings, Moon, Sun, Monitor, Pencil, Check, X, Briefcase, LayoutDashboard, FileDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -11,6 +11,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
+import { Link } from "react-router-dom";
 
 type Theme = "light" | "dark" | "system";
 
@@ -19,6 +20,9 @@ interface ChatHeaderProps {
   theme: Theme;
   onThemeChange: (theme: Theme) => void;
   onRename: (title: string) => void;
+  onToggleAssets: () => void;
+  onExport: () => void;
+  hasMessages: boolean;
 }
 
 export function ChatHeader({
@@ -26,6 +30,9 @@ export function ChatHeader({
   theme,
   onThemeChange,
   onRename,
+  onToggleAssets,
+  onExport,
+  hasMessages,
 }: ChatHeaderProps) {
   const [isEditing, setIsEditing] = useState(false);
   const [editValue, setEditValue] = useState(title);
@@ -59,9 +66,20 @@ export function ChatHeader({
     <header className="h-14 border-b border-border bg-background px-4 flex items-center justify-between">
       {/* Left: App title and chat name */}
       <div className="flex items-center gap-4">
-        <h1 className="font-semibold text-lg text-foreground hidden sm:block">
-          DataCopilot
-        </h1>
+        <div className="flex items-center gap-2">
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={onToggleAssets}
+            className="text-foreground hover:bg-accent"
+            title="Asset Manager"
+          >
+            <Briefcase className="h-5 w-5" />
+          </Button>
+          <h1 className="font-semibold text-lg text-foreground hidden sm:block">
+            Work-o-pilot
+          </h1>
+        </div>
         <span className="text-muted-foreground hidden sm:block">/</span>
 
         {isEditing ? (
@@ -96,6 +114,24 @@ export function ChatHeader({
 
       {/* Right: Settings */}
       <div className="flex items-center gap-2">
+        {hasMessages && (
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={onExport}
+            className="h-9 w-9"
+            title="Export Chat"
+          >
+            <FileDown className="h-4 w-4" />
+          </Button>
+        )}
+
+        <Button variant="ghost" size="icon" asChild className="hidden sm:flex">
+          <Link to="/assets" title="View Assets">
+            <LayoutDashboard className="h-4 w-4" />
+          </Link>
+        </Button>
+
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button variant="ghost" size="icon" className="h-9 w-9">

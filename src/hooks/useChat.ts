@@ -1,6 +1,7 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { Chat, Message, FileAttachment, GroupedChats, DateGroup } from "@/types/chat";
-import { mockChats, getRandomMockResponse } from "@/data/mockChats";
+import { sendChatMessage, fetchConversations, fetchConversationHistory, USER_ID } from "@/lib/api";
+import { generateUUID } from "@/lib/utils";
 
 function getDateGroup(date: Date): DateGroup {
   const now = new Date();
@@ -43,16 +44,68 @@ function groupChatsByDate(chats: Chat[]): GroupedChats[] {
 }
 
 export function useChat() {
-  const [chats, setChats] = useState<Chat[]>(mockChats);
-  const [activeChatId, setActiveChatId] = useState<string>(mockChats[0]?.id || "");
+  const [chats, setChats] = useState<Chat[]>([]);
+  const [activeChatId, setActiveChatId] = useState<string>("");
   const [isStreaming, setIsStreaming] = useState(false);
 
   const activeChat = chats.find((c) => c.id === activeChatId) || null;
   const groupedChats = groupChatsByDate(chats);
 
+  // Load conversations on mount (gracefully handle backend unavailable)
+  useEffect(() => {
+    async function loadConversations() {
+      try {
+        const conversations = await fetchConversations();
+        if (conversations && conversations.length > 0) {
+          const loadedChats: Chat[] = conversations.map((conv) => ({
+            id: conv.id,
+            title: conv.title || "Conversation",
+            messages: [],
+            createdAt: new Date(conv.created_at),
+            updatedAt: new Date(conv.updated_at),
+          }));
+          setChats(loadedChats);
+          setActiveChatId(loadedChats[0].id);
+        }
+        // If no conversations, leave chats empty - user can create new
+      } catch (error) {
+        console.log("Backend not available, starting fresh:", error);
+        // Backend not available - that's fine, user can still use local chats
+      }
+    }
+    loadConversations();
+  }, []);
+
+  // Load messages when active chat changes
+  useEffect(() => {
+    async function loadMessages() {
+      if (!activeChatId) return;
+      const chat = chats.find((c) => c.id === activeChatId);
+      if (chat && chat.messages.length > 0) return; // Already loaded
+
+      try {
+        const history = await fetchConversationHistory(activeChatId);
+        const messages: Message[] = history.map((msg) => ({
+          id: msg.id,
+          role: msg.role,
+          content: msg.content,
+          timestamp: new Date(msg.created_at),
+          visualization: msg.visualization,
+          sources: msg.sources,
+        }));
+        setChats((prev) =>
+          prev.map((c) => (c.id === activeChatId ? { ...c, messages } : c))
+        );
+      } catch (error) {
+        console.error("Failed to load messages:", error);
+      }
+    }
+    loadMessages();
+  }, [activeChatId]);
+
   const createNewChat = useCallback(() => {
     const newChat: Chat = {
-      id: crypto.randomUUID(),
+      id: generateUUID(),
       title: "New conversation",
       messages: [],
       createdAt: new Date(),
@@ -83,105 +136,109 @@ export function useChat() {
   const sendMessage = useCallback(
     async (content: string, attachments?: FileAttachment[]) => {
       let chatId = activeChatId;
+      let conversationId: string | undefined = activeChatId;
+      let isNewChat = false;
 
-      // Create new chat if none exists or current is empty
+      // Create new chat if none exists
       if (!chatId) {
-        const newChat = createNewChat();
-        chatId = newChat.id;
+        chatId = generateUUID();
+        conversationId = undefined;
+        isNewChat = true;
       }
 
       const userMessage: Message = {
-        id: crypto.randomUUID(),
+        id: generateUUID(),
         role: "user",
         content,
         timestamp: new Date(),
         attachments,
       };
 
-      // Add user message
-      setChats((prev) =>
-        prev.map((c) => {
-          if (c.id === chatId) {
-            const isFirstMessage = c.messages.length === 0;
-            return {
-              ...c,
-              title: isFirstMessage ? content.slice(0, 40) + (content.length > 40 ? "..." : "") : c.title,
-              messages: [...c.messages, userMessage],
-              updatedAt: new Date(),
-            };
-          }
-          return c;
-        })
-      );
-
-      // Simulate AI response
-      setIsStreaming(true);
-
-      const aiMessage: Message = {
-        id: crypto.randomUUID(),
-        role: "assistant",
-        content: "",
-        timestamp: new Date(),
-        isStreaming: true,
-      };
-
-      // Add empty AI message
-      setChats((prev) =>
-        prev.map((c) =>
-          c.id === chatId
-            ? { ...c, messages: [...c.messages, aiMessage], updatedAt: new Date() }
-            : c
-        )
-      );
-
-      // Simulate streaming response
-      const fullResponse = getRandomMockResponse();
-      const words = fullResponse.split(" ");
-      let currentContent = "";
-
-      for (let i = 0; i < words.length; i++) {
-        await new Promise((resolve) => setTimeout(resolve, 30 + Math.random() * 20));
-        currentContent += (i > 0 ? " " : "") + words[i];
-
+      // Add user message (and create chat if needed)
+      if (isNewChat) {
+        const newChat: Chat = {
+          id: chatId,
+          title: content.slice(0, 40) + (content.length > 40 ? "..." : ""),
+          messages: [userMessage],
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        };
+        setChats((prev) => [newChat, ...prev]);
+        setActiveChatId(chatId);
+      } else {
         setChats((prev) =>
           prev.map((c) => {
             if (c.id === chatId) {
-              const messages = [...c.messages];
-              const lastMsg = messages[messages.length - 1];
-              if (lastMsg && lastMsg.id === aiMessage.id) {
-                messages[messages.length - 1] = {
-                  ...lastMsg,
-                  content: currentContent,
-                };
-              }
-              return { ...c, messages };
+              const isFirstMessage = c.messages.length === 0;
+              return {
+                ...c,
+                title: isFirstMessage ? content.slice(0, 40) + (content.length > 40 ? "..." : "") : c.title,
+                messages: [...c.messages, userMessage],
+                updatedAt: new Date(),
+              };
             }
             return c;
           })
         );
       }
 
-      // Mark streaming as complete
-      setChats((prev) =>
-        prev.map((c) => {
-          if (c.id === chatId) {
-            const messages = [...c.messages];
-            const lastMsg = messages[messages.length - 1];
-            if (lastMsg && lastMsg.id === aiMessage.id) {
-              messages[messages.length - 1] = {
-                ...lastMsg,
-                isStreaming: false,
+      // Call API
+      setIsStreaming(true);
+      try {
+        const response = await sendChatMessage({
+          user_id: USER_ID,
+          conversation_id: conversationId,
+          user_query: content,
+        });
+
+        const assistantMessage: Message = {
+          id: response.message_id,
+          role: "assistant",
+          content: response.response.text,
+          timestamp: new Date(),
+          visualization: response.response.visualization,
+          sources: response.sources,
+          data: response.response.data,
+          follow_up_question: response.response.follow_up_question,
+        };
+
+        // Update chat with assistant message
+        const finalChatId = chatId;
+        setChats((prev) =>
+          prev.map((c) => {
+            if (c.id === finalChatId) {
+              return {
+                ...c,
+                id: response.conversation_id || c.id, // Update to server ID if provided
+                messages: [...c.messages, assistantMessage],
+                updatedAt: new Date(),
               };
             }
-            return { ...c, messages, updatedAt: new Date() };
-          }
-          return c;
-        })
-      );
-
-      setIsStreaming(false);
+            return c;
+          })
+        );
+        if (response.conversation_id) {
+          setActiveChatId(response.conversation_id);
+        }
+      } catch (error) {
+        console.error("Chat error:", error);
+        // Add error message
+        const errorMessage: Message = {
+          id: generateUUID(),
+          role: "assistant",
+          content: "Sorry, I encountered an error connecting to the server. Please check if the backend is running.",
+          timestamp: new Date(),
+        };
+        setChats((prev) =>
+          prev.map((c) =>
+            c.id === chatId ? { ...c, messages: [...c.messages, errorMessage] } : c
+          )
+        );
+      } finally {
+        setIsStreaming(false);
+      }
     },
-    [activeChatId, createNewChat]
+    [activeChatId]
   );
 
   return {
