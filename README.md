@@ -4,7 +4,6 @@
 
 An intelligent financial assistant that helps you track, analyze, and understand your investment portfolio across **stocks, cryptocurrencies, and commodities** using natural language conversations.
 
-![License](https://img.shields.io/badge/license-MIT-blue.svg)
 ![Python](https://img.shields.io/badge/python-3.10+-green.svg)
 ![React](https://img.shields.io/badge/react-18.3-blue.svg)
 ![TypeScript](https://img.shields.io/badge/typescript-5.8-blue.svg)
@@ -372,12 +371,6 @@ CREATE TABLE assets (
   created_at TIMESTAMP DEFAULT NOW()
 );
 ```
-
----
-
-## 📄 License
-
-MIT License - feel free to use this project for educational purposes.
 
 ---
 
