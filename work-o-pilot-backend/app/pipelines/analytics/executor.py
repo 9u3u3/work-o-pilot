@@ -2,7 +2,7 @@
 Analytics Pipeline Executor
 Orchestrates analytics tasks based on Router AI output
 """
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Tuple
 from uuid import UUID
 
 from app.models.schemas import (
@@ -11,7 +11,8 @@ from app.models.schemas import (
 )
 from app.pipelines.analytics.market_data import (
     fetch_stock_data, fetch_multiple_stocks, 
-    get_current_prices, get_current_price
+    get_current_prices, get_current_price,
+    normalize_symbol, get_asset_type, get_data_source_name
 )
 from app.pipelines.analytics.calculators import (
     calculate_trend, calculate_percentage_change, calculate_absolute_change,
@@ -74,30 +75,43 @@ def get_user_tickers(user_id: str) -> List[str]:
 
 def resolve_assets(
     requested_assets: List[str],
-    user_assets: List[Asset]
-) -> List[str]:
+    user_assets: List[Asset],
+    allow_external: bool = True
+) -> Tuple[List[str], bool]:
     """
     Resolve requested assets, handling __ALL__ and validating against user's portfolio.
+    Also handles external assets (like gold, bitcoin) that don't need to be in portfolio.
     
     Args:
         requested_assets: List from Router AI (may include "__ALL__")
         user_assets: User's actual assets
+        allow_external: If True, allow assets not in portfolio (for market queries)
     
     Returns:
-        List of valid ticker symbols
+        Tuple of (resolved tickers, is_external_query)
     """
     user_tickers = [a.symbol.upper() for a in user_assets]
     
     if "__ALL__" in requested_assets or not requested_assets:
-        return user_tickers
+        return user_tickers, False
     
-    # Validate requested assets are in user's portfolio
-    valid = []
+    # Normalize all requested assets
+    normalized = []
     for ticker in requested_assets:
-        if ticker.upper() in user_tickers:
-            valid.append(ticker.upper())
+        normalized.append(normalize_symbol(ticker))
     
-    return valid
+    # Check if any are in user's portfolio
+    portfolio_assets = [t for t in normalized if t.upper() in user_tickers]
+    
+    # If we have portfolio matches, use those
+    if portfolio_assets:
+        return portfolio_assets, False
+    
+    # If allow_external and no portfolio matches, treat as external market query
+    if allow_external and normalized:
+        return normalized, True
+    
+    return [], False
 
 
 async def execute_analytics(
@@ -121,22 +135,32 @@ async def execute_analytics(
     
     # Get user's assets
     user_assets = get_user_assets(user_id)
-    if not user_assets:
-        return AnalyticsResult(
-            task=task,
-            success=False,
-            error="No assets found in your portfolio. Please add some stocks first."
-        )
     
     # Resolve which assets to analyze
     requested = entities.assets
-    assets_to_analyze = resolve_assets(requested, user_assets)
     
-    if not assets_to_analyze:
+    # Determine if this requires portfolio assets or allows external queries
+    requires_portfolio = task in ["pnl", "allocation", "rank"]
+    assets_to_analyze, is_external = resolve_assets(
+        requested, 
+        user_assets, 
+        allow_external=not requires_portfolio
+    )
+    
+    # For portfolio-required tasks, we need user assets
+    if requires_portfolio and not user_assets:
         return AnalyticsResult(
             task=task,
             success=False,
-            error=f"Requested assets {requested} not found in your portfolio."
+            error="No assets found in your portfolio. Please add some assets first."
+        )
+    
+    # For external queries without portfolio, just check if we have symbols
+    if not assets_to_analyze and not is_external:
+        return AnalyticsResult(
+            task=task,
+            success=False,
+            error=f"Requested assets {requested} not found. Try using ticker symbols like AAPL, BTC, GOLD."
         )
     
     time_range = entities.time_range

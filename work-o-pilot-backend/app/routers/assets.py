@@ -133,6 +133,9 @@ async def create_asset(
     print("Called Assets")
     structured_file_urls = []
     unstructured_file_urls = []
+    
+    # Import RAG ingest for document ingestion
+    from app.pipelines.rag.ingest import ingest_text, is_available as rag_available
 
     for file in files:
         file_content = await file.read()
@@ -157,6 +160,27 @@ async def create_asset(
                 structured_file_urls.append(public_url)
             else:
                 unstructured_file_urls.append(public_url)
+                
+                # Ingest text-based files into RAG pipeline for document Q&A
+                if file_ext in ["txt", "md", "text"] and rag_available():
+                    try:
+                        text_content = file_content.decode("utf-8")
+                        ingest_result = ingest_text(
+                            text=text_content,
+                            user_id=str(user_id),
+                            source_name=f"{symbol.upper()} - {file.filename}",
+                            metadata={
+                                "asset_symbol": symbol.upper(),
+                                "file_name": file.filename,
+                                "file_type": file_ext
+                            }
+                        )
+                        if ingest_result.get("success"):
+                            print(f"[Assets] Ingested {file.filename} into RAG: {ingest_result.get('chunks_count')} chunks")
+                        else:
+                            print(f"[Assets] RAG ingestion failed for {file.filename}: {ingest_result.get('error')}")
+                    except Exception as rag_error:
+                        print(f"[Assets] RAG ingestion error for {file.filename}: {rag_error}")
                 
         except Exception as e:
             print(f"Failed to upload {file.filename}: {e}")

@@ -1,12 +1,118 @@
 """
 Market Data Service - yfinance wrapper
 Fetches live stock data, keeps in memory only (no persistence)
+Supports: Stocks, Crypto, Gold, Silver, Oil, and other commodities
 """
 import yfinance as yf
 import pandas as pd
 from datetime import datetime, timedelta
-from typing import Optional, List, Dict
+from typing import Optional, List, Dict, Tuple
 from app.models.schemas import TimeRange
+
+
+# ========================
+# Asset Type Mappings
+# ========================
+
+# Map user-friendly names to yfinance tickers
+ASSET_SYMBOL_MAP = {
+    # Crypto
+    "BTC": "BTC-USD", "BITCOIN": "BTC-USD",
+    "ETH": "ETH-USD", "ETHEREUM": "ETH-USD",
+    "SOL": "SOL-USD", "SOLANA": "SOL-USD",
+    "XRP": "XRP-USD", "RIPPLE": "XRP-USD",
+    "ADA": "ADA-USD", "CARDANO": "ADA-USD",
+    "DOGE": "DOGE-USD", "DOGECOIN": "DOGE-USD",
+    "DOT": "DOT-USD", "POLKADOT": "DOT-USD",
+    "MATIC": "MATIC-USD", "POLYGON": "MATIC-USD",
+    "AVAX": "AVAX-USD", "AVALANCHE": "AVAX-USD",
+    "LINK": "LINK-USD", "CHAINLINK": "LINK-USD",
+    "LTC": "LTC-USD", "LITECOIN": "LTC-USD",
+    "UNI": "UNI-USD", "UNISWAP": "UNI-USD",
+    "SHIB": "SHIB-USD",
+    "PEPE": "PEPE-USD",
+    
+    # Precious Metals
+    "GOLD": "GC=F", "XAU": "GC=F", "XAUUSD": "GC=F",
+    "SILVER": "SI=F", "XAG": "SI=F", "XAGUSD": "SI=F",
+    "PLATINUM": "PL=F", "XPT": "PL=F",
+    "PALLADIUM": "PA=F", "XPD": "PA=F",
+    
+    # Energy
+    "OIL": "CL=F", "CRUDE": "CL=F", "CRUDEOIL": "CL=F", "WTI": "CL=F",
+    "BRENT": "BZ=F",
+    "NATURALGAS": "NG=F", "NATGAS": "NG=F", "GAS": "NG=F",
+    
+    # ETF alternatives (more reliable data)
+    "GLD": "GLD",  # Gold ETF
+    "SLV": "SLV",  # Silver ETF
+    "USO": "USO",  # Oil ETF
+}
+
+# Identify asset type by ticker pattern
+CRYPTO_SUFFIXES = ["-USD", "-USDT", "-EUR", "-GBP"]
+FUTURES_SUFFIXES = ["=F"]
+COMMODITY_TICKERS = {"GC=F", "SI=F", "CL=F", "NG=F", "PL=F", "PA=F", "BZ=F"}
+COMMODITY_ETFS = {"GLD", "SLV", "USO", "UNG", "DBA", "DBC"}
+
+
+def normalize_symbol(symbol: str) -> str:
+    """
+    Convert user-friendly asset names to yfinance tickers.
+    
+    Examples:
+        - "Bitcoin" -> "BTC-USD"
+        - "Gold" -> "GC=F"
+        - "AAPL" -> "AAPL" (unchanged)
+    """
+    upper = symbol.upper().strip()
+    
+    # Check if it's in our mapping
+    if upper in ASSET_SYMBOL_MAP:
+        return ASSET_SYMBOL_MAP[upper]
+    
+    # Already a valid ticker format
+    return upper
+
+
+def get_asset_type(symbol: str) -> str:
+    """
+    Detect the asset type from a ticker symbol.
+    
+    Returns: "stock", "crypto", "gold", "silver", "oil", "commodity"
+    """
+    upper = symbol.upper()
+    
+    # Check if it's crypto (has -USD suffix)
+    for suffix in CRYPTO_SUFFIXES:
+        if upper.endswith(suffix):
+            return "crypto"
+    
+    # Check specific commodities
+    if upper in {"GC=F", "GLD"}:
+        return "gold"
+    if upper in {"SI=F", "SLV"}:
+        return "silver"
+    if upper in {"CL=F", "BZ=F", "USO"}:
+        return "oil"
+    if upper in COMMODITY_TICKERS or upper in COMMODITY_ETFS:
+        return "commodity"
+    
+    # Default to stock
+    return "stock"
+
+
+def get_data_source_name(symbol: str) -> str:
+    """Get a human-readable data source name for a symbol."""
+    asset_type = get_asset_type(symbol)
+    
+    if asset_type == "crypto":
+        return f"CoinGecko/Yahoo Finance - {symbol}"
+    elif asset_type in ("gold", "silver", "oil", "commodity"):
+        return f"COMEX/Yahoo Finance - {symbol}"
+    else:
+        return f"Yahoo Finance - {symbol}"
+
 
 
 def get_period_string(time_range: TimeRange) -> str:

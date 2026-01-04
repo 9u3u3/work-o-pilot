@@ -257,6 +257,10 @@ export function AssetForm({
                                 <SelectContent>
                                     <SelectItem value="Stock">Stock</SelectItem>
                                     <SelectItem value="Crypto">Crypto</SelectItem>
+                                    <SelectItem value="Gold">Gold</SelectItem>
+                                    <SelectItem value="Silver">Silver</SelectItem>
+                                    <SelectItem value="Oil">Oil</SelectItem>
+                                    <SelectItem value="Commodity">Commodity</SelectItem>
                                     <SelectItem value="Real Estate">Real Estate</SelectItem>
                                     <SelectItem value="Other">Other</SelectItem>
                                 </SelectContent>
