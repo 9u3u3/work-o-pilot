@@ -1,0 +1,15 @@
+fastapi
+uvicorn
+supabase
+python-dotenv
+pydantic-settings
+python-multipart
+groq
+yfinance
+pandas
+numpy
+sentence-transformers
+langchain-text-splitters
+pinecone
+matplotlib
+prophet
